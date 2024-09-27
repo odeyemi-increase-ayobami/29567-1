@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Racing Game</title>
+<style>
+body { margin: 0; overflow: hidden; }
+canvas { width: 100%; height: 100%; display: block; }
+#info { position: absolute; top: 10px; width: 100%; text-align: center; z-index: 100; display:block; color: white; font-family: monospace; }
+</style>
+</head>
+<body>
+
+<div id="info">
+    <div>Laps: <span id="laps">0</span></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// Setup scene, camera, and renderer
+const scene = new THREE.Scene();
+const camera = new THREE.OrthographicCamera(window.innerWidth / -2, window.innerWidth / 2, window.innerHeight / 2, window.innerHeight / -2, 1, 1000);
+camera.position.set(0, 100, 0);
+camera.lookAt(0, 0, 0);
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Game variables
+let player, computerPlayer, track, obstacles = [];
+let speed = 0, maxSpeed = 0.5, acceleration = 0.005, deceleration = 0.01;
+let laps = 0, crashed = false;
+
+// Create track
+const trackRadius = 100;
+const trackWidth = 10;
+const trackGeometry = new THREE.TorusGeometry(trackRadius, trackWidth, 16, 100);
+const trackMaterial = new THREE.MeshBasicMaterial({ color: 0x888888, wireframe: true });
+const track1 = new THREE.Mesh(trackGeometry, trackMaterial);
+const track2 = track1.clone();
+track2.rotation.y = Math.PI / 2; // Rotate for intersection
+scene.add(track1, track2);
+
+// Player setup
+function createCar() {
+    const geometry = new THREE.BoxGeometry(5, 2, 10);
+    const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    return new THREE.Mesh(geometry, material);
+}
+
+player = createCar();
+player.position.set(trackRadius, 1, 0);
+scene.add(player);
+
+computerPlayer = createCar();
+computerPlayer.material.color.set(0x00ff00);
+computerPlayer.position.set(0, 1, trackRadius);
+scene.add(computerPlayer);
+
+// Lights
+const ambientLight = new THREE.AmbientLight(0x404040);
+scene.add(ambientLight);
+
+// Controls
+document.addEventListener('keydown', onKeyDown, false);
+document.addEventListener('keyup', onKeyUp, false);
+
+function onKeyDown(event) {
+    if (event.keyCode === 38) { // UP arrow
+        speed = Math.min(speed + acceleration, maxSpeed);
+    } else if (event.keyCode === 40) { // DOWN arrow
+        speed = Math.max(speed - deceleration, -maxSpeed / 2);
+    }
+}
+
+function onKeyUp(event) {
+    if (event.keyCode === 38 || event.keyCode === 40) {
+        speed = 0;
+    }
+}
+
+// Game loop
+function animate() {
+    if (!crashed) {
+        // Move player
+        player.rotation.y -= speed;
+        const playerAngle = player.rotation.y;
+        player.position.x = Math.cos(playerAngle) * trackRadius;
+        player.position.z = Math.sin(playerAngle) * trackRadius;
+
+        // Move computer player
+        computerPlayer.rotation.y -= maxSpeed / 1.5;
+        const computerAngle = computerPlayer.rotation.y;
+        computerPlayer.position.x = Math.cos(computerAngle) * trackRadius;
+        computerPlayer.position.z = Math.sin(computerAngle) * trackRadius;
+
+        // Check collision with track intersection or obstacles
+        if (checkCollision(player) || checkObstaclesCollision(player)) {
+            crash();
+        }
+
+        // Lap counting
+        if (Math.abs(player.rotation.y) > Math.PI * 2) {
+            player.rotation.y = player.rotation.y % (Math.PI * 2);
+            laps++;
+            document.getElementById('laps').textContent = laps;
+        }
+
+        // Randomly add obstacles on computer track
+        if (Math.random() < 0.005) addObstacle();
+    }
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+}
+
+function checkCollision(car) {
+    // Simplified collision check at intersection
+    const tolerance = 10; // Adjust as needed
+    return Math.abs(car.position.x) < tolerance && Math.abs(car.position.z) < tolerance;
+}
+
+function checkObstaclesCollision(car) {
+    return obstacles.some(obstacle => car.position.distanceTo(obstacle.position) < 7); // 7 is a collision distance
+}
+
+function crash() {
+    crashed = true;
+    alert('Crash! Game Over. Refresh to restart.');
+}
+
+function addObstacle() {
+    const obstacle = createCar();
+    obstacle.material.color.setHex(0x0000ff);
+    const angle = Math.random() * Math.PI * 2;
+    obstacle.position.set(Math.cos(angle) * trackRadius, 1, Math.sin(angle) * trackRadius);
+    obstacle.rotation.y = angle;
+    scene.add(obstacle);
+    obstacles.push(obstacle);
+}
+
+animate();
+
+// Responsive design
+window.addEventListener('resize', onWindowResize, false);
+
+function onWindowResize() {
+    camera.left = window.innerWidth / -2;
+    camera.right = window.innerWidth / 2;
+    camera.top = window.innerHeight / 2;
+    camera.bottom = window.innerHeight / -2;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+</script>
+
+</body>
+</html>
